@@ -371,7 +371,7 @@ async def main():
 
         DistinctExperationTimes = data["Expiration"].unique()
         option2 = st.selectbox(
-                    "Volility By Strike & Days Till Expiration:",
+                    "Volitility By Strike & Days Till Expiration:",
                     DistinctExperationTimes,
                 )
         temp = data[data["Expiration"] == option2]
