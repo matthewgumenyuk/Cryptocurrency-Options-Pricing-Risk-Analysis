@@ -65,7 +65,7 @@ async def priceAPI(index: int, instrument: str):
                     await asyncio.sleep(1)  # Wait for 1 second before retrying
                     await priceAPI(index, instrument)
                 if response.status != 200 and response.status != 429:
-                    st.write(f"Request failed with status code: {response.status} - {response.reason}")
+                    st.write(f"An API request failed with status code: {response.status} - {response.reason}")
             except Exception as e:
                 pass
 
@@ -283,7 +283,7 @@ async def main():
         col.remove("Option Type")
         col.remove("Sale Time")
         clients = st.multiselect(
-            "Select Variables",
+            "Select Variables For 3D Plot",
             col,
             max_selections=3
         )
@@ -353,6 +353,37 @@ async def main():
             )
 
             st.plotly_chart(fig2, use_container_width=True)
+
+        clients2 = st.multiselect(
+            "Select Variables For 2D Plot",
+            col,
+            max_selections=2
+        )
+
+        if len(clients2) == 2:
+            temp = data[clients2]
+            st.scatter_chart(
+            temp,
+            x=clients2[0],
+            y=clients2[1],
+            color=["#C1631F"],
+            )
+
+        DistinctExperationTimes = data["Expiration"].unique()
+        option2 = st.selectbox(
+                    "Volility By Strike & Days Till Expiration:",
+                    DistinctExperationTimes,
+                )
+        temp = data[data["Expiration"] == option2]
+        temp = temp[["Expiration", "Black Sholes IV (Time Independent)", "Strike"]]
+        temp = temp.dropna()
+        st.scatter_chart(
+                    temp,
+                    x="Strike",
+                    y="Black Sholes IV (Time Independent)",
+                    color=["#C1631F"],
+        )
+        
 
 
 
