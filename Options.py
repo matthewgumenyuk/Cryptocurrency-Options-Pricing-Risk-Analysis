@@ -1,9 +1,6 @@
 
 from datetime import datetime
 import streamlit as st
-import multiprocessing
-import pip
-import numpy as np
 import pandas as pd
 import aiohttp
 import asyncio
@@ -11,17 +8,13 @@ import requests
 import json
 import math
 import scipy.stats as stats
-import time
-import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
-import sys
-import subprocess
 import QuantLib as ql
 import plotly.express as px
 import plotly.graph_objects as graph
 import numpy as np
 from scipy.interpolate import griddata
-# python -m streamlit run "c:/Users/gumen/Downloads/Options/Options.py"
+from sklearn.neighbors import LocalOutlierFactor
+# python -m streamlit run "C:\Users\gumen\OneDrive\Desktop\Options.py"
 '''
 Bitcoin Option Analysis
 '''
@@ -29,7 +22,7 @@ Bitcoin Option Analysis
 global market_prices
 global BitcoinMarketPrice
 global RiskFreeRate
-global GabagoolCollections #kick up the data to the boss
+global GabagoolCollections
 global my_bar
 global InstrumentsToPlay
 global SaleTimes
@@ -43,7 +36,7 @@ RiskFreeRateByDaysTillMaturity = {
     182: 0.0,
     364: 0.0,
 }
-go = True
+
 async def priceAPI(index: int, instrument: str):
     async with aiohttp.ClientSession() as session:
         async with session.get(f"https://test.deribit.com/api/v2/public/get_last_trades_by_instrument?count=1&instrument_name={instrument}") as response:
@@ -53,18 +46,15 @@ async def priceAPI(index: int, instrument: str):
                     if "result" in data.keys():
                         if (data["result"].get("has_more") == True):
                             data = eval(str(data["result"].get("trades")[0]))
-                            global market_prices
                             market_prices[index] = data.get("index_price")*data.get("mark_price")
-                            global BitcoinMarketPrice
                             BitcoinMarketPrice[index] = data.get("index_price")
                             iv[index] = data.get("iv")/100
-                            global SaleTimes
                             SaleTimes[index] = datetime.fromtimestamp(data.get("timestamp")/1000).astimezone()
                     await GabagoolCollect()
-                if response.status == 429:
-                    await asyncio.sleep(1)  # Wait for 1 second before retrying
+                elif response.status == 429:
+                    await asyncio.sleep(1)
                     await priceAPI(index, instrument)
-                if response.status != 200 and response.status != 429:
+                else:
                     st.write(f"An API request failed with status code: {response.status} - {response.reason}")
             except Exception as e:
                 pass
@@ -73,8 +63,6 @@ async def priceAPI(index: int, instrument: str):
 async def GabagoolCollect():
     global GabagoolCollections
     GabagoolCollections += 1
-    global my_bar
-    global InstrumentsToPlay
     if GabagoolCollections > InstrumentsToPlay:
         GabagoolCollections = InstrumentsToPlay
     my_bar.progress(GabagoolCollections/(InstrumentsToPlay), text="Collecting data...")
@@ -92,7 +80,7 @@ async def GetRiskFreeRate():
     RiskFreeRateByDaysTillMaturity[364] = df.iloc[0]["1 Yr"]/100
     await GabagoolCollect()
 
-def BlackSholesCall(S, K, T, r, sigma):
+def BlackSholesCall(S: float, K: float, T: float, r: float, sigma: float) -> float:
     d1 = (math.log(S / K) + (r + (sigma ** 2) / 2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     return S * stats.norm.cdf(d1) - K * math.exp(-r * T) * stats.norm.cdf(d2)
@@ -175,6 +163,7 @@ async def main():
         df.index = range(0, len(df))
         my_bar.progress(1.0, text="Done Collecting Data!")
         my_bar2 = st.progress(0, text="Analyzing data...")
+        
         for i in range(len(df["Instrument"])):
             Strike = df.iloc[i]["Strike"]
             Price = df.iloc[i]["Market Price"]
@@ -258,11 +247,21 @@ async def main():
             my_bar2.progress(float(i+1)/float(len(df["Instrument"])), text="Analyzing data...")
                 
 
-        my_bar2.progress(1.0, text="Done Analyzing Data!")
+
         calls = df[df["Option Type"] == "call"]
         calls.index = range(len(calls))
         puts = df[df["Option Type"] == "put"]
         puts.index = range(len(puts))
+
+        for i in [calls, puts, df]:
+            clf = LocalOutlierFactor(n_neighbors=2)
+            X = i[["Expiration", "Strike/Spot", "Market Price", "Black Sholes IV (Time Independent)", "Black Sholes Vega","Black Sholes Theta", "Black Sholes Rho", "Black Sholes Delta", "Black Sholes Gamma", "Black Sholes Alpha", "Black Sholes Beta"]].dropna()
+            i.loc[X.index, "Outlier"] = clf.fit_predict(X.values.tolist())
+
+
+
+        my_bar2.progress(1.0, text="Done Analyzing data!")
+
         st.session_state["TableData"] = {
             "Calls": calls,
             "Puts": puts,
@@ -272,10 +271,17 @@ async def main():
     if "TableData" in st.session_state:
         option = st.selectbox(
             "Options Data:",
-            ("Calls", "Puts", "Both"),
+            ("Both", "Calls", "Puts"),
         )
         data = st.session_state["TableData"][option]
-        
+        option2 = st.selectbox(
+            "Data Type:",
+            ("Both", "Outliers", "Regulars"),
+        )
+        if option2 == "Outliers":
+            data = data[data["Outlier"] == -1]
+        if option2 == "Regulars":
+            data = data[data["Outlier"] == 1]
         st.dataframe(data)
 
         col = data.columns.tolist()
@@ -289,8 +295,7 @@ async def main():
         )
 
         if len(clients) == 3:
-            temp = data[clients]
-            temp = temp.dropna()
+            temp = data[clients].dropna()
 
             fig = px.scatter_3d(
             temp,
@@ -312,12 +317,10 @@ async def main():
             st.plotly_chart(fig, use_container_width=True)
             
 
-            # Extract columns (works even when column names change)
             x = temp.iloc[:, 0].to_numpy()
             y = temp.iloc[:, 1].to_numpy()
             z = temp.iloc[:, 2].to_numpy()
 
-            # Create a finer grid
             xi = np.linspace(x.min(), x.max(), 100)
             yi = np.linspace(y.min(), y.max(), 100)
             X, Y = np.meshgrid(xi, yi)
@@ -375,8 +378,6 @@ async def main():
                     DistinctExperationTimes,
                 )
         temp = data[data["Expiration"] == option2]
-        temp = temp[["Expiration", "Black Sholes IV (Time Independent)", "Strike"]]
-        temp = temp.dropna()
         st.scatter_chart(
                     temp,
                     x="Strike",
