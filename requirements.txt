@@ -7,3 +7,4 @@ scipy
 matplotlib
 QuantLib
 plotly
+scikit-learn
