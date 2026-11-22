@@ -7,6 +7,7 @@ import asyncio
 import requests
 import json
 import math
+import time
 import scipy.stats as stats
 import QuantLib as ql
 import plotly.express as px
@@ -26,6 +27,7 @@ global GabagoolCollections
 global my_bar
 global InstrumentsToPlay
 global SaleTimes
+global StartTimeOfCalls
 
 RiskFreeRateByDaysTillMaturity = {
     28: 0.0,
@@ -62,10 +64,11 @@ async def priceAPI(index: int, instrument: str):
 
 async def GabagoolCollect():
     global GabagoolCollections
-    GabagoolCollections += 1
-    if GabagoolCollections > InstrumentsToPlay:
-        GabagoolCollections = InstrumentsToPlay
-    my_bar.progress(GabagoolCollections/(InstrumentsToPlay), text="Collecting data...")
+    global StartTimeSfCalls
+    if GabagoolCollections < InstrumentsToPlay:
+        GabagoolCollections += 1
+    status = GabagoolCollections/(InstrumentsToPlay)
+    my_bar.progress(status, text=f"Collecting data... (Estimated Time to Complete: {math.ceil(((time.time()-StartTimeSfCalls)/status)*(1.0-status))} Seconds")
 
 async def GetRiskFreeRate():
     year = datetime.now().year
@@ -140,8 +143,11 @@ async def main():
         global SaleTimes
         SaleTimes = [datetime.now()] * len(instruments)
 
+        global StartTimeSfCalls
+
         tasks.append(GetRiskFreeRate())
         my_bar.progress(0, text="Starting API Calls...")
+        StartTimeSfCalls = time.time()
         await asyncio.gather(*tasks)
         
         df = pd.DataFrame({
@@ -163,13 +169,13 @@ async def main():
         df.index = range(0, len(df))
         my_bar.progress(1.0, text="Done Collecting Data!")
         my_bar2 = st.progress(0, text="Analyzing data...")
+        keys = sorted(RiskFreeRateByDaysTillMaturity.keys())
         
         for i in range(len(df["Instrument"])):
             Strike = df.iloc[i]["Strike"]
             Price = df.iloc[i]["Market Price"]
             Spot = df.iloc[i]["Spot"]
             TimeToExpiration = df.iloc[i]["Expiration"]
-            keys = sorted(RiskFreeRateByDaysTillMaturity.keys())
             RiskFreeRate = RiskFreeRateByDaysTillMaturity[keys[0]]
             for key in keys:
                 if df.iloc[i]["Expiration"] > key:
@@ -180,6 +186,7 @@ async def main():
 
             if df.iloc[i]["Option Type"] == "call":
                 df.at[i, "Moneyness"] = 1 - df.at[i, "Strike/Spot"]
+                df.at[i, "Evenness"] = Strike+Price
                 try:
                     df.at[i, "Black Sholes IV"] = ql.blackFormulaImpliedStdDev(ql.Option.Call, Strike, ForwardPrice, Price, math.exp(-RiskFreeRate * TimeToExpiration/365) )
                     df.at[i, "Black Sholes IV (Time Independent)"] = df.at[i, "Black Sholes IV"]/math.sqrt(TimeToExpiration/365)
@@ -286,6 +293,8 @@ async def main():
             X = data[LookToDetect].dropna()
             clf = LocalOutlierFactor(n_neighbors=int(neighbors))
             data.loc[X.index, "Outlier"] = clf.fit_predict(X.values.tolist())
+        else:
+            df["Outlier"] = [None] * len(df)
 
 
 
@@ -299,7 +308,7 @@ async def main():
             clients.append("Outlier")
             temp = data[clients].dropna()
             
-            colors = {-1: "Outlier", 1: "Regular", None: "Regular"}
+            colors = {-1: "Outlier", 1: "Regular"}
             temp["Outlier"] = temp["Outlier"].map(colors)
             fig = px.scatter_3d(
             temp,
