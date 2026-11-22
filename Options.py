@@ -68,7 +68,7 @@ async def GabagoolCollect():
     if GabagoolCollections < InstrumentsToPlay:
         GabagoolCollections += 1
     status = GabagoolCollections/(InstrumentsToPlay)
-    my_bar.progress(status, text=f"Collecting data... (Estimated Time to Complete: {math.ceil(((time.time()-StartTimeSfCalls)/status)*(1.0-status))} Seconds")
+    my_bar.progress(status, text=f"Collecting data... (Estimated Time to Complete: {math.ceil(((time.time()-StartTimeSfCalls)/status)*(1.0-status))} Seconds)")
 
 async def GetRiskFreeRate():
     year = datetime.now().year
