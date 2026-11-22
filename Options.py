@@ -244,20 +244,14 @@ async def main():
 
                 except Exception as e:
                     pass
-            my_bar2.progress(float(i+1)/float(len(df["Instrument"])), text="Analyzing data...")
+            my_bar2.progress(float(i)/float(len(df["Instrument"])), text="Analyzing data...")
                 
 
-
+        df["Outlier"] = [None] * len(df)
         calls = df[df["Option Type"] == "call"]
         calls.index = range(len(calls))
         puts = df[df["Option Type"] == "put"]
         puts.index = range(len(puts))
-
-        for i in [calls, puts, df]:
-            clf = LocalOutlierFactor(n_neighbors=2)
-            X = i[["Expiration", "Strike/Spot", "Market Price", "Black Sholes IV (Time Independent)", "Black Sholes Vega","Black Sholes Theta", "Black Sholes Rho", "Black Sholes Delta", "Black Sholes Gamma", "Black Sholes Alpha", "Black Sholes Beta"]].dropna()
-            i.loc[X.index, "Outlier"] = clf.fit_predict(X.values.tolist())
-
 
 
         my_bar2.progress(1.0, text="Done Analyzing data!")
@@ -274,20 +268,27 @@ async def main():
             ("Both", "Calls", "Puts"),
         )
         data = st.session_state["TableData"][option]
-        option2 = st.selectbox(
-            "Data Type:",
-            ("Both", "Outliers", "Regulars"),
-        )
-        if option2 == "Outliers":
-            data = data[data["Outlier"] == -1]
-        if option2 == "Regulars":
-            data = data[data["Outlier"] == 1]
-        st.dataframe(data)
+        datatable = st.empty()
+        datatable.dataframe(data)
 
         col = data.columns.tolist()
         col.remove("Instrument")
         col.remove("Option Type")
         col.remove("Sale Time")
+
+
+        LookToDetect = st.multiselect(
+                    "Select Variables For Outlier Detection",
+                    col
+        )
+        neighbors = st.number_input(label = "Number of Neighbors to Look at", min_value=1, step=1)
+        if len(LookToDetect) != 0:
+            X = data[LookToDetect].dropna()
+            clf = LocalOutlierFactor(n_neighbors=int(neighbors))
+            data.loc[X.index, "Outlier"] = clf.fit_predict(X.values.tolist())
+
+
+
         clients = st.multiselect(
             "Select Variables For 3D Plot",
             col,
@@ -295,13 +296,17 @@ async def main():
         )
 
         if len(clients) == 3:
+            clients.append("Outlier")
             temp = data[clients].dropna()
-
+            
+            colors = {-1: "Outlier", 1: "Regular"}
+            temp["Outlier"] = temp["Outlier"].map(colors)
             fig = px.scatter_3d(
             temp,
             x=clients[0],
             y=clients[1],
             z=clients[2],
+            color = clients[3]
             )
             fig.update_traces(marker=dict(size=4))
             fig.update_layout(
