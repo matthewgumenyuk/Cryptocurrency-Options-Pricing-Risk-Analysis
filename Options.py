@@ -308,7 +308,7 @@ async def main():
             clients.append("Outlier")
             temp = data[clients].dropna()
             
-            colors = {-1: "Outlier", 1: "Regular"}
+            colors = {-1: "Outlier", 1: "Regular", None: "Regular"}
             temp["Outlier"] = temp["Outlier"].map(colors)
             fig = px.scatter_3d(
             temp,
