@@ -294,7 +294,7 @@ async def main():
             clf = LocalOutlierFactor(n_neighbors=int(neighbors))
             data.loc[X.index, "Outlier"] = clf.fit_predict(X.values.tolist())
         else:
-            data["Outlier"] = [None] * len(data)
+            data["Outlier"] = [1] * len(data)
 
 
 
