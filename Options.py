@@ -110,6 +110,9 @@ async def main():
         global my_bar
         my_bar = st.progress(0, text=progress_text)
         OptionsList = requests.get(url = "https://test.deribit.com/api/v2/public/get_instruments?currency=BTC&expired=false&kind=option")
+        if OptionsList.status_code != 200:
+            st.write(f"Connection to Deribit failed: {OptionsList.status_code} - {OptionsList.reason}")
+            return
         OptionsList = json.loads(OptionsList.text)["result"]
         instruments = []
         strikes = []
