@@ -53,7 +53,7 @@ async def priceAPI(index: int, instrument: str):
                             iv[index] = data.get("iv")/100
                             SaleTimes[index] = datetime.fromtimestamp(data.get("timestamp")/1000).astimezone()
                     await GabagoolCollect()
-                elif response.status == 429:
+                elif response.status == 429 or response.status == 403:
                     await asyncio.sleep(1)
                     await priceAPI(index, instrument)
                 else:
