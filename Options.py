@@ -43,7 +43,7 @@ async def priceAPI(index: int, instrument: str):
     async with aiohttp.ClientSession() as session:
         async with session.get(f"https://test.deribit.com/api/v2/public/get_last_trades_by_instrument?count=1&instrument_name={instrument}") as response:
             try:
-                if response.status == 200:
+                if response.status == 200 or response.status == 403:
                     data = await response.json()
                     if "result" in data.keys():
                         if (data["result"].get("has_more") == True):
@@ -53,7 +53,7 @@ async def priceAPI(index: int, instrument: str):
                             iv[index] = data.get("iv")/100
                             SaleTimes[index] = datetime.fromtimestamp(data.get("timestamp")/1000).astimezone()
                     await GabagoolCollect()
-                elif response.status == 429 or response.status == 403:
+                elif response.status == 429:
                     await asyncio.sleep(1)
                     await priceAPI(index, instrument)
                 else:
